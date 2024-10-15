@@ -225,8 +225,8 @@ def group_by_espesor(df, espesor_list):
     df['cantidadPerforacionesPlacas'] = df['cantidadPerforacionesPlacas'].apply(
         lambda x: float(x) if isinstance(x, Decimal) else x)
 
-    df['mm_total'] = df['espesor'] * df['placas'] * df['cantidadPerforacionesPlacas']
-    df['Perforaciones'] = df['placas'] * df['cantidadPerforacionesPlacas']
+    df['mm_total'] = df['espesor'] * df['perforaTotal']
+    df['Perforaciones'] = df['perforaTotal']
     df['espesor'] = pd.to_numeric(df['espesor'], errors='coerce')
 
     # Sort espesor_list to ensure correct interval creation

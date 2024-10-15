@@ -33,17 +33,20 @@ alt.themes.enable("dark")
 # Sidebar setup in Streamlit
 with st.sidebar:
     st.sidebar.image("data/logo.png", use_column_width=True)
-    st.title("📅 Nave1/Cnc Dashboard")
+    st.title("📅 Nave1/CNC Dashboard")
     default_month_index = months.index(cm) - 1  # Index to control the month
     default_years_index = years.index(cy)
     selected_month = st.sidebar.selectbox('Select a month', months, index=default_month_index)
     selected_year = st.sidebar.selectbox('Select a year', years, index=default_years_index)
-    costos_mes = st.sidebar.number_input('Enter valor for Costo/Mes', value=15000000)
+    costos_mes = st.sidebar.number_input('Enter valor for Costo/Mes', value=15000000, min_value=0)
 
     # Input for espesor values
-    espesor_input = st.text_area('Enter espesor values (comma-separated, e.g., "15, 20, 30")', value="12, 32, 100")
+    espesor_input = st.text_area(
+        'Enter espesor values (comma-separated, e.g., "15, 20, 30")',
+        value="12, 32, 100"
+    ).strip()
 
-    # Convert the espesor input to a list of integers
+    # Convert the espesor input to a list of integers and handle errors
     try:
         espesor_list = [int(x.strip()) for x in espesor_input.split(',')]
     except ValueError:
@@ -53,8 +56,11 @@ with st.sidebar:
 # Process the data
 df = create_dataframe_from_items(items)
 
+# Filter by sabimet and steelk
 filtered_df_sabimet = filter_by_year_month(df, selected_year, selected_month, 'sabimet')
 filtered_df_steelk = filter_by_year_month(df, selected_year, selected_month, 'steelk')
+st.subheader("filtered_df_sabimet")
+filtered_df_sabimet
 
 # Define aggregation dictionary
 agg_dict = {
@@ -75,7 +81,13 @@ aggregated_df_sabimet = filter_drop_duplicates_groupby_and_aggregate(
     'Progreso',
     agg_dict
 )
+st.subheader("aggregated_df_sabimet")
+columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
+for col in columns_to_convert:
+    aggregated_df_sabimet[col] = aggregated_df_sabimet[col].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
 
+aggregated_df_sabimet['espesor total'] = aggregated_df_sabimet['espesor']*aggregated_df_sabimet['placas']*aggregated_df_sabimet['cantidadPerforacionesPlacas']
+aggregated_df_sabimet
 
 aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
     filtered_df_steelk,
@@ -84,81 +96,46 @@ aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
     agg_dict
 )
 
-
-
 per_sabimet = sum(aggregated_df_sabimet['perforaTotal'])
 per_stellk = sum(aggregated_df_sttelk['perforaTotal'])
 
-pr_sabimet = per_sabimet/(per_sabimet+per_stellk )
-pr_stellk  = per_stellk/(per_sabimet+per_stellk )
+pr_sabimet = per_sabimet / (per_sabimet + per_stellk)
+pr_stellk = per_stellk / (per_sabimet + per_stellk)
 
 
-# --- Savimet Section ---
-st.header("Sabimet")
+# Function to render data for each section
+def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
+    st.header(title)
 
-# Compute metrics
-avg_espesor_sabimet  = round(float(weighted_average_espesor(aggregated_df_sabimet )), 2)
-result_sabimet  = group_by_espesor(aggregated_df_sabimet , espesor_list)  # Use the espesor list from UI
-mm_total_sabimet  = round(float(result_sabimet['mm_total'].sum()), 2)
-costo_mm_sabimet  = round(costos_mes*(pr_sabimet/mm_total_sabimet), 2)
+    avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
+    result = group_by_espesor(aggregated_df, espesor_list)  # Use the espesor list from UI
+    mm_total = round(float(result['mm_total'].sum()), 2)
+    costo_mm = round(costos_mes * (pr / mm_total), 2)
 
-# Display aggregated results in cards with colors
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric(label="Average Espesor", value=float(avg_espesor_sabimet), delta_color="off", delta=None)
-with col2:
-    st.metric(label="MM Total", value=float(mm_total_sabimet), delta_color="off", delta=None)
-with col3:
-    st.metric(label="Costo/mm", value=float(costo_mm_sabimet), delta_color="off", delta=None)
-    st.metric(label="Perforaciones", value=float(sum(aggregated_df_sabimet['perforaTotal'])),
-              delta_color="off", delta=None)
+    # Display aggregated results in metric cards
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(label="Average Espesor", value=float(avg_espesor), delta_color="off", delta=None)
+    with col2:
+        st.metric(label="MM Total", value=float(mm_total), delta_color="off", delta=None)
+    with col3:
+        st.metric(label="Costo/mm", value=float(costo_mm), delta_color="off", delta=None)
+    st.metric(label="Perforaciones", value=float(sum(aggregated_df['perforaTotal'])), delta_color="off", delta=None)
 
-# Display the DataFrame
-st.subheader("Costo por Espesor")
-df_cost_sabimet = pd.DataFrame({
-    'espesor': espesor_list,
-    'Costo': [round(value * costo_mm_sabimet) for value in espesor_list]
-})
-st.dataframe(df_cost_sabimet)
+    # Display the cost per espesor
+    st.subheader("Costo por Espesor")
+    df_cost = pd.DataFrame({
+        'espesor': espesor_list,
+        'Costo': [round(value * costo_mm) for value in espesor_list]
+    })
+    st.dataframe(df_cost)
+
+    # Display the raw data (espesores)
+    st.subheader("Espesores")
+    st.dataframe(result)
+
+
+# Render sections for Sabimet and Steelk
+render_section("Sabimet", aggregated_df_sabimet, espesor_list, pr_sabimet, costos_mes)
 st.markdown('---')
-# --- Steelk Section ---
-st.header("Steelk")
-
-# Compute metrics
-avg_espesor_sttelk = round(float(weighted_average_espesor(aggregated_df_sttelk)), 2)
-result_sttelk = group_by_espesor(aggregated_df_sttelk, espesor_list)  # Use the espesor list from UI
-mm_total_sttelk = round(float(result_sttelk['mm_total'].sum()), 2)
-costo_mm_sttelk = round(costos_mes*(pr_stellk/mm_total_sttelk), 2)
-
-# Display aggregated results in cards with colors
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric(label="Average Espesor", value=float(avg_espesor_sttelk), delta_color="off", delta=None)
-with col2:
-    st.metric(label="MM Total", value=float(mm_total_sttelk), delta_color="off", delta=None)
-with col3:
-    st.metric(label="Costo/mm", value=float(costo_mm_sttelk), delta_color="off", delta=None)
-    st.metric(label="Perforaciones", value=float(sum(aggregated_df_sttelk['perforaTotal'])),
-              delta_color="off", delta=None)
-
-# Display the DataFrame
-st.subheader("Costo por Espesor")
-df_cost_sttelk = pd.DataFrame({
-    'espesor': espesor_list,
-    'Costo': [round(value * costo_mm_sttelk ) for value in espesor_list]
-})
-st.dataframe(df_cost_sttelk)
-
-# --- Additional UI enhancements ---
-st.markdown('---')
-st.subheader("Raw Data (Savimet)")
-# st.dataframe(aggregated_df_sabimet)
-
-st.subheader("Espesores")
-st.dataframe(result_sabimet)
-
-st.markdown('---')
-st.subheader("Raw Data (Steelk)")
-# st.dataframe(aggregated_df_sttelk)
-st.subheader("Espesores")
-st.dataframe(result_sttelk)
+render_section("Steelk", aggregated_df_sttelk, espesor_list, pr_stellk, costos_mes)
