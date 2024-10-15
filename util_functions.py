@@ -1,5 +1,5 @@
 import pandas as pd
-
+from typing import List, Dict, Any
 
 
 def create_dataframe_from_items(items):
@@ -79,7 +79,7 @@ def add_months(date, months):
     day = min(date.day, [31,29,31,30,31,30,31,31,30,31,30,31][month-1])
     return datetime(year, month, day)
 
-from typing import List, Dict, Any
+
 
 
 def filter_by_year_month(df, year, month, nego):
@@ -154,12 +154,14 @@ def create_dataframe_from_items(items):
     df = pd.DataFrame(rows, columns=columns)
     df['Inicio'] = pd.to_datetime(df['Inicio'], errors='coerce')
     df['Terminado'] = pd.to_datetime(df['Terminado'], errors='coerce')
+    columns_to_convert = ['placas', 'cantidadPerforacionesPlacas']
+    for col in columns_to_convert:
+        df[col] = df[col].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
+
+    df['perforaTotal'] = df['placas']*df['cantidadPerforacionesPlacas']
     df['Tiempo Proceso (min)'] = round((df['Terminado'] - df['Inicio']).dt.total_seconds() / 60, 2)
 
     return df
-
-
-import pandas as pd
 
 
 def filter_drop_duplicates_groupby_and_aggregate(df, column_name, value, agg_dict):
@@ -212,25 +214,19 @@ def drop_zero_value_columns(df):
     return df_dropped
 
 import pandas as pd
+from decimal import Decimal
 
 
 def group_by_espesor(df, espesor_list):
-    """
-    Groups the DataFrame by espesor based on the given list of espesor thresholds and sums other columns.
-
-    Parameters:
-    df (pandas.DataFrame): The input DataFrame.
-    espesor_list (list): A list of espesor thresholds for grouping.
-
-    Returns:
-    pandas.DataFrame: The grouped DataFrame with summed values.
-    """
-    # Drop the 'pv' column
-
+    # Example column conversions, assuming espesor, placas, and cantidadPerforacionesPlacas need conversion
     df = df.drop(columns=['pv'])
-    df['mm_total'] = df['espesor']*df['cantidadPerforacionesTotal']
+    df['espesor'] = df['espesor'].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
+    df['placas'] = df['placas'].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
+    df['cantidadPerforacionesPlacas'] = df['cantidadPerforacionesPlacas'].apply(
+        lambda x: float(x) if isinstance(x, Decimal) else x)
 
-    # Ensure espesor is numeric for sorting and comparison
+    df['mm_total'] = df['espesor'] * df['placas'] * df['cantidadPerforacionesPlacas']
+    df['Perforaciones'] = df['placas'] * df['cantidadPerforacionesPlacas']
     df['espesor'] = pd.to_numeric(df['espesor'], errors='coerce')
 
     # Sort espesor_list to ensure correct interval creation
@@ -247,9 +243,6 @@ def group_by_espesor(df, espesor_list):
 
     # Group by espesor_group and sum other columns
     grouped_df = df.groupby('espesor_group', observed=False).sum().reset_index()
-    grouped_df = grouped_df.drop(columns=['espesor'])
-    return grouped_df
+    grouped_df = grouped_df.drop(columns=['espesor', 'cantidadPerforacionesPlacas', 'cantidadPerforacionesTotal'])
 
-
-
-
+    return  grouped_df
