@@ -102,39 +102,143 @@ pr_sabimet = per_sabimet / (per_sabimet + per_stellk)
 pr_stellk = per_stellk / (per_sabimet + per_stellk)
 
 
+import streamlit as st
+import pandas as pd
+
+
 # Function to render data for each section
 def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
-    st.header(title)
+    with st.expander(title):
+        avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
+        result = group_by_espesor(aggregated_df, espesor_list)  # Use the espesor list from UI
+        mm_total = round(float(result['mm_total'].sum()), 2)
+        costo_mm = round(costos_mes * (pr / mm_total), 2)
+        perforaciones = float(sum(aggregated_df['perforaTotal']))
 
-    avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
-    result = group_by_espesor(aggregated_df, espesor_list)  # Use the espesor list from UI
-    mm_total = round(float(result['mm_total'].sum()), 2)
-    costo_mm = round(costos_mes * (pr / mm_total), 2)
+        # CSS for cards with stronger colors
+        st.markdown("""
+            <style>
+                .card {
+                    border-radius: 10px;
+                    padding: 20px;
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #ffffff;
+                    margin-bottom: 20px;
+                    border: 1px solid transparent;
+                }
+                .card-header {
+                    font-size: 16px;
+                    font-weight: normal;
+                    color: rgba(255, 255, 255, 0.7);
+                }
+                .blue { background-color: #007bff; }
+                .teal { background-color: #20c997; }
+                .purple { background-color: #6f42c1; }
+                .red { background-color: #dc3545; }
+                .center-me { margin: 0 auto; }
+                .styled-table {
+                    border-collapse: collapse;
+                    margin: 25px 0;
+                    font-size: 18px;
+                    text-align: left;
+                    width: 100%;
+                }
+                .styled-table thead tr {
+                    background-color: #009879;
+                    color: #ffffff;
+                    text-align: left;
+                }
+                .styled-table th, .styled-table td {
+                    padding: 12px 15px;
+                    border: 1px solid #ddd;
+                }
+                .styled-table tbody tr:nth-of-type(even) {
+                    background-color: #f3f3f3;
+                }
+                .styled-table tbody tr:nth-of-type(odd) {
+                    background-color: #ffffff;
+                }
+                .styled-table tbody tr:hover {
+                    background-color: #f1f1f1;
+                }
+                .styled-table tbody td {
+                    color: #333333;
+                    font-weight: normal;
+                }
+                .styled-table tfoot tr {
+                    background-color: #009879;
+                    color: #ffffff;
+                    text-align: left;
+                    font-weight: bold;
+                }
+            </style>
+        """, unsafe_allow_html=True)
 
-    # Display aggregated results in metric cards
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="Average Espesor", value=float(avg_espesor), delta_color="off", delta=None)
-    with col2:
-        st.metric(label="MM Total", value=float(mm_total), delta_color="off", delta=None)
-    with col3:
-        st.metric(label="Costo/mm", value=float(costo_mm), delta_color="off", delta=None)
-    st.metric(label="Perforaciones", value=float(sum(aggregated_df['perforaTotal'])), delta_color="off", delta=None)
+        # Display aggregated results in metric cards
+        col1, col2, col3, col4 = st.columns(4)
 
-    # Display the cost per espesor
-    st.subheader("Costo por Espesor")
-    df_cost = pd.DataFrame({
-        'espesor': espesor_list,
-        'Costo': [round(value * costo_mm) for value in espesor_list]
-    })
-    st.dataframe(df_cost)
+        with col1:
+            st.markdown(f"""
+            <div class="card blue center-me">
+                <div class="card-header">Average Espesor</div>
+                {float(avg_espesor)}
+            </div>
+            """, unsafe_allow_html=True)
 
-    # Display the raw data (espesores)
-    st.subheader("Espesores")
-    st.dataframe(result)
+        with col2:
+            st.markdown(f"""
+            <div class="card teal center-me">
+                <div class="card-header">MM Total</div>
+                {float(mm_total)}
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""
+            <div class="card purple center-me">
+                <div class="card-header">Costo/mm</div>
+                {float(costo_mm)}
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col4:
+            st.markdown(f"""
+            <div class="card red center-me">
+                <div class="card-header">Perforaciones</div>
+                {perforaciones}
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Use container for remaining data
+        with st.container():
+            # st.subheader("Costo por Espesor")
+
+            df_cost = pd.DataFrame({
+                'Espesor': espesor_list,
+                'Costo': [round(value * costo_mm, 2) for value in espesor_list]
+            })
+            result = result.drop(columns=['perforaTotal', 'placas', 'Tiempo Proceso (min)'])
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.subheader("Espesores")
+                st.dataframe(result.reset_index(drop=True), use_container_width=True)
 
 
-# Render sections for Sabimet and Steelk
+            with col2:
+                st.subheader("Costo por Espesor")
+                st.dataframe(df_cost, use_container_width=True)
+
+
+            # st.dataframe(df_cost)
+            #
+            # st.subheader("Espesores")
+            # result = result.drop(columns=['perforaTotal', 'placas'])
+            # st.dataframe(result)
+
+# Example call to render_section (You will need your data to run this code)
 render_section("Sabimet", aggregated_df_sabimet, espesor_list, pr_sabimet, costos_mes)
 st.markdown('---')
 render_section("Steelk", aggregated_df_sttelk, espesor_list, pr_stellk, costos_mes)
