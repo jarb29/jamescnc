@@ -59,8 +59,7 @@ df = create_dataframe_from_items(items)
 # Filter by sabimet and steelk
 filtered_df_sabimet = filter_by_year_month(df, selected_year, selected_month, 'sabimet')
 filtered_df_steelk = filter_by_year_month(df, selected_year, selected_month, 'steelk')
-st.subheader("filtered_df_sabimet")
-filtered_df_sabimet
+# st.subheader("filtered_df_sabimet")
 
 # Define aggregation dictionary
 agg_dict = {
@@ -81,13 +80,13 @@ aggregated_df_sabimet = filter_drop_duplicates_groupby_and_aggregate(
     'Progreso',
     agg_dict
 )
-st.subheader("aggregated_df_sabimet")
+# st.subheader("aggregated_df_sabimet")
 columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
 for col in columns_to_convert:
     aggregated_df_sabimet[col] = aggregated_df_sabimet[col].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
 
-aggregated_df_sabimet['espesor total'] = aggregated_df_sabimet['espesor']*aggregated_df_sabimet['placas']*aggregated_df_sabimet['cantidadPerforacionesPlacas']
-aggregated_df_sabimet
+# aggregated_df_sabimet['espesor total'] = aggregated_df_sabimet['espesor']*aggregated_df_sabimet['placas']*aggregated_df_sabimet['cantidadPerforacionesPlacas']
+#
 
 aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
     filtered_df_steelk,
