@@ -36,14 +36,15 @@ with st.sidebar:
     st.title("📅 Nave1/CNC Dashboard")
     default_month_index = months.index(cm) - 1  # Index to control the month
     default_years_index = years.index(cy)
-    selected_month = st.sidebar.selectbox('Select a month', months, index=default_month_index)
-    selected_year = st.sidebar.selectbox('Select a year', years, index=default_years_index)
-    costos_mes = st.sidebar.number_input('Enter valor for Costo/Mes', value=15000000, min_value=0)
+    selected_month = st.sidebar.selectbox('Selecciones Mes', months, index=default_month_index)
+    selected_year = st.sidebar.selectbox('Selecciones Año', years, index=default_years_index)
+    costos_mes = st.sidebar.number_input('Introduzca Gasto/Mes', value=15000000, min_value=0)
+    costos_mm = st.sidebar.number_input('Introduzca Costo/mm', value=160, min_value=0)
 
     # Input for espesor values
     espesor_input = st.text_area(
         'Enter espesor values (comma-separated, e.g., "15, 20, 30")',
-        value="12, 32, 100"
+        value="12, 32"
     ).strip()
 
     # Convert the espesor input to a list of integers and handle errors
@@ -85,8 +86,6 @@ columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
 for col in columns_to_convert:
     aggregated_df_sabimet[col] = aggregated_df_sabimet[col].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
 
-# aggregated_df_sabimet['espesor total'] = aggregated_df_sabimet['espesor']*aggregated_df_sabimet['placas']*aggregated_df_sabimet['cantidadPerforacionesPlacas']
-#
 
 aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
     filtered_df_steelk,
@@ -102,8 +101,7 @@ pr_sabimet = per_sabimet / (per_sabimet + per_stellk)
 pr_stellk = per_stellk / (per_sabimet + per_stellk)
 
 
-import streamlit as st
-import pandas as pd
+
 
 
 # Function to render data for each section
@@ -111,9 +109,14 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
     with st.expander(title):
         avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
         result = group_by_espesor(aggregated_df, espesor_list)  # Use the espesor list from UI
+        perforaciones = float(sum(aggregated_df['perforaTotal']))
+        result['Costo mm'] = round(((result['perforaTotal'] / perforaciones) * costos_mes) / (result['mm_total']),2)
+        result['Costo mm'] = result['Costo mm'].fillna(0)  # Replace NaN values with 0
+
         mm_total = round(float(result['mm_total'].sum()), 2)
         costo_mm = round(costos_mes * (pr / mm_total), 2)
-        perforaciones = float(sum(aggregated_df['perforaTotal']))
+
+        mm_margin = costos_mm - costo_mm
 
         # CSS for cards with stronger colors
         st.markdown("""
@@ -148,7 +151,6 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
                 .styled-table thead tr {
                     background-color: #009879;
                     color: #ffffff;
-                    text-align: left;
                 }
                 .styled-table th, .styled-table td {
                     padding: 12px 15px;
@@ -170,7 +172,6 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
                 .styled-table tfoot tr {
                     background-color: #009879;
                     color: #ffffff;
-                    text-align: left;
                     font-weight: bold;
                 }
             </style>
@@ -198,8 +199,12 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
         with col3:
             st.markdown(f"""
             <div class="card purple center-me">
-                <div class="card-header">Costo/mm</div>
+                <div class="card-header">Costo Global/mm</div>
                 {float(costo_mm)}
+                <div style="font-size:12px; text-align:left;">Diferencia: 
+                    {round(float(mm_margin), 2)}$ a
+                    {costos_mm}$
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -213,30 +218,15 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
 
         # Use container for remaining data
         with st.container():
-            # st.subheader("Costo por Espesor")
-
-            df_cost = pd.DataFrame({
-                'Espesor': espesor_list,
-                'Costo': [round(value * costo_mm, 2) for value in espesor_list]
-            })
             result = result.drop(columns=['perforaTotal', 'placas', 'Tiempo Proceso (min)'])
-            col1, col2 = st.columns(2)
+
+            col1 = st.columns(1)[0]  # Fixed single column selection
 
             with col1:
                 st.subheader("Espesores")
                 st.dataframe(result.reset_index(drop=True), use_container_width=True)
 
 
-            with col2:
-                st.subheader("Costo por Espesor")
-                st.dataframe(df_cost, use_container_width=True)
-
-
-            # st.dataframe(df_cost)
-            #
-            # st.subheader("Espesores")
-            # result = result.drop(columns=['perforaTotal', 'placas'])
-            # st.dataframe(result)
 
 # Example call to render_section (You will need your data to run this code)
 render_section("Sabimet", aggregated_df_sabimet, espesor_list, pr_sabimet, costos_mes)
