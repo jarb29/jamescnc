@@ -43,7 +43,7 @@ with st.sidebar:
 
     # Input for espesor values
     espesor_input = st.text_area(
-        'Enter espesor values (comma-separated, e.g., "15, 20, 30")',
+        'Introduzca espesor limites (comma-separated, e.g., "15, 20, 30")',
         value="12, 32"
     ).strip()
 
@@ -51,7 +51,7 @@ with st.sidebar:
     try:
         espesor_list = [int(x.strip()) for x in espesor_input.split(',')]
     except ValueError:
-        st.error("Please enter valid integers separated by commas.")
+        st.error("Introduzca un numero entero, separado por comas.")
         espesor_list = []
 
 # Process the data
