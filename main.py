@@ -183,7 +183,7 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
         with col1:
             st.markdown(f"""
             <div class="card blue center-me">
-                <div class="card-header">Average Espesor</div>
+                <div class="card-header">Espesor Promedio</div>
                 {float(avg_espesor)}
             </div>
             """, unsafe_allow_html=True)
