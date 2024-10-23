@@ -43,7 +43,7 @@ with st.sidebar:
 
     # Input for espesor values
     espesor_input = st.text_area(
-        'Introduzca espesor limites (comma-separated, e.g., "15, 20, 30")',
+        'Introduzca espesor limites (comma-separado, e.g., "15, 20, 30")',
         value="12, 32"
     ).strip()
 
