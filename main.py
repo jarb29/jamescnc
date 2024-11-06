@@ -36,8 +36,8 @@ with st.sidebar:
     st.title("📅 Nave1/CNC Costos")
     default_month_index = months.index(cm) - 1  # Index to control the month
     default_years_index = years.index(cy)
-    selected_month = st.sidebar.selectbox('Selecciones Mes', months, index=default_month_index)
-    selected_year = st.sidebar.selectbox('Selecciones Año', years, index=default_years_index)
+    selected_month = st.sidebar.selectbox('Seleccione Mes', months, index=default_month_index)
+    selected_year = st.sidebar.selectbox('Seleccione Año', years, index=default_years_index)
     costos_mes = st.sidebar.number_input('Introduzca Gasto/Mes', value=15000000, min_value=0)
     costos_mm = st.sidebar.number_input('Introduzca Costo/mm', value=160, min_value=0)
 
