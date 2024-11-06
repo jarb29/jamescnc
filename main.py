@@ -33,7 +33,7 @@ alt.themes.enable("dark")
 # Sidebar setup in Streamlit
 with st.sidebar:
     st.sidebar.image("data/logo.png", use_column_width=True)
-    st.title("📅 Nave1/CNC Costo")
+    st.title("📅 Nave1/CNC Costos")
     default_month_index = months.index(cm) - 1  # Index to control the month
     default_years_index = years.index(cy)
     selected_month = st.sidebar.selectbox('Selecciones Mes', months, index=default_month_index)
