@@ -23,7 +23,7 @@ months, years, cm, cy = get_months_and_years_since("01/08/2024")
 
 # Streamlit configuration for the web app
 st.set_page_config(
-    page_title="Kupfer Nave1/CNC Dashboard",
+    page_title="Costo/CNC",
     page_icon="📉",
     layout="wide",
     initial_sidebar_state="expanded"
