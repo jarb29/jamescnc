@@ -1,9 +1,9 @@
 import boto3
 import streamlit as st
 import altair as alt
-import pandas as pd
+
 from util_functions import *
-import re
+
 from decimal import Decimal
 
 # Initialize DynamoDB resource
@@ -32,7 +32,7 @@ alt.themes.enable("dark")
 
 # Sidebar setup in Streamlit
 with st.sidebar:
-    st.sidebar.image("data/logo.png", use_column_width=True)
+    st.sidebar.image("data/logo.png", use_container_width=True)
     st.title("📅 Nave1/CNC Costos")
     default_month_index = months.index(cm) - 1  # Index to control the month
     default_years_index = years.index(cy)
