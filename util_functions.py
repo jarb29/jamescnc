@@ -35,7 +35,7 @@ def add_months(date, months):
 
 
 
-def  filter_by_year_month(df, year, month, nego):
+def filter_by_year_month(df, year, month, nego):
     filtered_items = []
     for index, row in df.iterrows():
         close_at_date = row['Terminado']
