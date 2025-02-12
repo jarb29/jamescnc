@@ -220,17 +220,13 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
             st.exception(e)
 
 
-# In the main processing section, after filtering:
+# Main Data Processing
 try:
     df = create_dataframe_from_items(items)
-    st.sidebar.info(f"Total records: {len(df)}")
 
     # Filter data
     filtered_df_sabimet = filter_by_year_month(df, selected_year, selected_month, 'sabimet')
     filtered_df_steelk = filter_by_year_month(df, selected_year, selected_month, 'steelk')
-
-    st.sidebar.info(f"Sabimet records: {len(filtered_df_sabimet)}")
-    st.sidebar.info(f"Steelk records: {len(filtered_df_steelk)}")
 
     # Check if we have data before proceeding
     if filtered_df_sabimet.empty and filtered_df_steelk.empty:
@@ -251,8 +247,6 @@ try:
                 'Progreso',
                 agg_dict
             )
-            st.sidebar.info(f"Aggregated Sabimet records: {len(aggregated_df_sabimet)}")
-            
             # Convert decimal types
             columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
             for col in columns_to_convert:
@@ -271,16 +265,12 @@ try:
                 'Progreso',
                 agg_dict
             )
-            st.sidebar.info(f"Aggregated Steelk records: {len(aggregated_df_sttelk)}")
         else:
             aggregated_df_sttelk = pd.DataFrame()
 
         # Calculate proportions only if we have data
         per_sabimet = sum(aggregated_df_sabimet['perforaTotal']) if not aggregated_df_sabimet.empty else 0
         per_stellk = sum(aggregated_df_sttelk['perforaTotal']) if not aggregated_df_sttelk.empty else 0
-
-        st.sidebar.info(f"Sabimet perforaciones: {per_sabimet}")
-        st.sidebar.info(f"Steelk perforaciones: {per_stellk}")
 
         total_per = per_sabimet + per_stellk
         if total_per > 0:
@@ -296,4 +286,3 @@ try:
 
 except Exception as e:
     st.error(f"Error in main data processing: {str(e)}")
-    st.exception(e)
