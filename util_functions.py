@@ -135,6 +135,7 @@ def filter_drop_duplicates_groupby_and_aggregate(df, column_name, value, agg_dic
     - pandas.DataFrame containing the aggregated data
     """
     # Filter the DataFrame
+    print(df, "df after filtering")
     filtered_df = df[df[column_name] == value]
 
     # Drop duplicate rows

@@ -6,22 +6,7 @@ from util_functions import *
 import re
 from decimal import Decimal
 
-# Initialize DynamoDB resource
-dynamo = boto3.resource('dynamodb', region_name='us-east-1')
-table = dynamo.Table("sam-stack-irlaa-MecanizadoCloseTable-1IKYW80FKFRII")
-
-# Scan the DynamoDB table and retrieve all items
-response = table.scan()
-items = response['Items']
-
-while 'LastEvaluatedKey' in response:
-    response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
-    items.extend(response['Items'])
-
-# Get months and years since a particular date
-months, years, cm, cy = get_months_and_years_since("01/08/2024")
-
-# Streamlit configuration for the web app
+# Streamlit Configuration
 st.set_page_config(
     page_title="Costo/CNC",
     page_icon="📉",
@@ -30,16 +15,63 @@ st.set_page_config(
 )
 alt.themes.enable("dark")
 
-# Sidebar setup in Streamlit
+# Custom CSS for no data message
+st.markdown("""
+    <style>
+        .no-data-message {
+            text-align: center;
+            padding: 40px;
+            background: #1E1E1E;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .no-data-message h2 {
+            color: #666;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .no-data-message p {
+            color: #999;
+            font-size: 16px;
+        }
+        .info-icon {
+            font-size: 48px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# DynamoDB Setup and Data Retrieval
+try:
+    dynamo = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamo.Table("sam-stack-irlaa-MecanizadoCloseTable-1IKYW80FKFRII")
+    
+    items = []
+    response = table.scan()
+    items.extend(response['Items'])
+    
+    while 'LastEvaluatedKey' in response:
+        response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+        items.extend(response['Items'])
+        
+    st.sidebar.success(f"Retrieved {len(items)} records from DynamoDB")
+except Exception as e:
+    st.error(f"Error connecting to DynamoDB: {str(e)}")
+    items = []
+
+# Get months and years
+months, years, cm, cy = get_months_and_years_since("01/08/2024")
+
+# Sidebar Configuration
 with st.sidebar:
     st.sidebar.image("data/logo.png", use_container_width=True)
     st.title("📅 Nave1/CNC Costos")
-    # Perform the conditional check
-    if cm == 1:  # Assuming '1' corresponds to 'January'
-        default_month_index = months.index(cm)  # Leave as is
+    
+    if cm == 1:
+        default_month_index = months.index(cm)
     else:
-        default_month_index = months.index(cm) - 1  # Apply the formula
-
+        default_month_index = months.index(cm) - 1
 
     default_years_index = years.index(cy)
 
@@ -48,28 +80,28 @@ with st.sidebar:
     costos_mes = st.sidebar.number_input('Introduzca Gasto/Mes', value=15000000, min_value=0)
     costos_mm = st.sidebar.number_input('Introduzca Costo/mm', value=160, min_value=0)
 
-    # Input for espesor values
     espesor_input = st.text_area(
         'Introduzca espesor limites (comma-separado, e.g., "15, 20, 30")',
         value="12, 32"
     ).strip()
 
-    # Convert the espesor input to a list of integers and handle errors
     try:
         espesor_list = [int(x.strip()) for x in espesor_input.split(',')]
     except ValueError:
         st.error("Introduzca un numero entero, separado por comas.")
         espesor_list = []
 
-# Process the data
-df = create_dataframe_from_items(items)
+def show_no_data_message(title, month, year):
+    st.markdown(f"""
+        <div class="no-data-message">
+            <div class="info-icon">ℹ️</div>
+            <h2>No hay datos disponibles para {title}</h2>
+            <p>No se encontraron registros para el mes {month} del año {year}.</p>
+            <p>Por favor, seleccione un período diferente o verifique que existan datos para este período.</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-# Filter by sabimet and steelk
-filtered_df_sabimet = filter_by_year_month(df, selected_year, selected_month, 'sabimet')
-filtered_df_steelk = filter_by_year_month(df, selected_year, selected_month, 'steelk')
-# st.subheader("filtered_df_sabimet")
-
-# Define aggregation dictionary
+# Aggregation Configuration
 agg_dict = {
     'cantidadPerforacionesTotal': 'sum',
     'cantidadPerforacionesPlacas': 'sum',
@@ -81,161 +113,187 @@ agg_dict = {
     'Tiempo Proceso (min)': 'sum'
 }
 
-# Aggregate the filtered data
-aggregated_df_sabimet = filter_drop_duplicates_groupby_and_aggregate(
-    filtered_df_sabimet,
-    'origen',
-    'Progreso',
-    agg_dict
-)
-# st.subheader("aggregated_df_sabimet")
-columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
-for col in columns_to_convert:
-    aggregated_df_sabimet[col] = aggregated_df_sabimet[col].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
-
-
-aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
-    filtered_df_steelk,
-    'origen',
-    'Progreso',
-    agg_dict
-)
-
-per_sabimet = sum(aggregated_df_sabimet['perforaTotal'])
-per_stellk = sum(aggregated_df_sttelk['perforaTotal'])
-
-pr_sabimet = per_sabimet / (per_sabimet + per_stellk)
-pr_stellk = per_stellk / (per_sabimet + per_stellk)
-
-
-
-
-
-# Function to render data for each section
 def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
     with st.expander(title):
-        avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
-        result = group_by_espesor(aggregated_df, espesor_list)  # Use the espesor list from UI
-        perforaciones = float(sum(aggregated_df['perforaTotal']))
-        result['Costo mm'] = round(((result['perforaTotal'] / perforaciones) * costos_mes) / (result['mm_total']),2)
-        result['Costo mm'] = result['Costo mm'].fillna(0)  # Replace NaN values with 0
+        if aggregated_df.empty:
+            show_no_data_message(title, selected_month, selected_year)
+            return
 
-        mm_total = round(float(result['mm_total'].sum()), 2)
-        costo_mm = round(costos_mes * (pr / mm_total), 2)
+        try:
+            avg_espesor = round(float(weighted_average_espesor(aggregated_df)), 2)
+            result = group_by_espesor(aggregated_df, espesor_list)
+            perforaciones = float(sum(aggregated_df['perforaTotal']))
+            
+            if perforaciones > 0:
+                result['Costo mm'] = round(((result['perforaTotal'] / perforaciones) * costos_mes) / (result['mm_total']), 2)
+                result['Costo mm'] = result['Costo mm'].fillna(0)
 
-        mm_margin = costos_mm - costo_mm
+                mm_total = round(float(result['mm_total'].sum()), 2)
+                costo_mm = round(costos_mes * (pr / mm_total), 2) if mm_total > 0 else 0
+                mm_margin = costos_mm - costo_mm
 
-        # CSS for cards with stronger colors
+                # CSS styling
+                st.markdown("""
+                    <style>
+                        .card {
+                            border-radius: 10px;
+                            padding: 20px;
+                            text-align: center;
+                            font-size: 24px;
+                            font-weight: bold;
+                            color: #ffffff;
+                            margin-bottom: 20px;
+                            border: 1px solid transparent;
+                        }
+                        .card-header {
+                            font-size: 16px;
+                            font-weight: normal;
+                            color: rgba(255, 255, 255, 0.7);
+                        }
+                        .blue { background-color: #007bff; }
+                        .teal { background-color: #20c997; }
+                        .purple { background-color: #6f42c1; }
+                        .red { background-color: #dc3545; }
+                        .center-me { margin: 0 auto; }
+                    </style>
+                """, unsafe_allow_html=True)
+
+                # Display metrics
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    st.markdown(f"""
+                    <div class="card blue center-me">
+                        <div class="card-header">Espesor Promedio</div>
+                        {float(avg_espesor)}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col2:
+                    st.markdown(f"""
+                    <div class="card teal center-me">
+                        <div class="card-header">MM Total</div>
+                        {float(mm_total)}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col3:
+                    st.markdown(f"""
+                    <div class="card purple center-me">
+                        <div class="card-header">Costo Global/mm</div>
+                        {float(costo_mm)}
+                        <div style="font-size:12px; text-align:left;">Diferencia: 
+                            {round(float(mm_margin), 2)}$ a
+                            {costos_mm}$
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col4:
+                    st.markdown(f"""
+                    <div class="card red center-me">
+                        <div class="card-header">Perforaciones</div>
+                        {int(perforaciones)}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Display results table
+                with st.container():
+                    # Drop unnecessary columns before displaying
+                    display_result = result.copy()
+                    if 'perforaTotal' in display_result.columns:
+                        display_result = display_result.drop(columns=['perforaTotal'])
+                    if 'placas' in display_result.columns:
+                        display_result = display_result.drop(columns=['placas'])
+                    if 'Tiempo Proceso (min)' in display_result.columns:
+                        display_result = display_result.drop(columns=['Tiempo Proceso (min)'])
+                    
+                    st.subheader("Espesores")
+                    st.dataframe(display_result.reset_index(drop=True), use_container_width=True)
+
+            else:
+                show_no_data_message(title, selected_month, selected_year)
+                
+        except Exception as e:
+            st.error(f"Error processing data for {title}: {str(e)}")
+            st.error("Full error details:")
+            st.exception(e)
+
+
+# In the main processing section, after filtering:
+try:
+    df = create_dataframe_from_items(items)
+    st.sidebar.info(f"Total records: {len(df)}")
+
+    # Filter data
+    filtered_df_sabimet = filter_by_year_month(df, selected_year, selected_month, 'sabimet')
+    filtered_df_steelk = filter_by_year_month(df, selected_year, selected_month, 'steelk')
+
+    st.sidebar.info(f"Sabimet records: {len(filtered_df_sabimet)}")
+    st.sidebar.info(f"Steelk records: {len(filtered_df_steelk)}")
+
+    # Check if we have data before proceeding
+    if filtered_df_sabimet.empty and filtered_df_steelk.empty:
         st.markdown("""
-            <style>
-                .card {
-                    border-radius: 10px;
-                    padding: 20px;
-                    text-align: center;
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #ffffff;
-                    margin-bottom: 20px;
-                    border: 1px solid transparent;
-                }
-                .card-header {
-                    font-size: 16px;
-                    font-weight: normal;
-                    color: rgba(255, 255, 255, 0.7);
-                }
-                .blue { background-color: #007bff; }
-                .teal { background-color: #20c997; }
-                .purple { background-color: #6f42c1; }
-                .red { background-color: #dc3545; }
-                .center-me { margin: 0 auto; }
-                .styled-table {
-                    border-collapse: collapse;
-                    margin: 25px 0;
-                    font-size: 18px;
-                    text-align: left;
-                    width: 100%;
-                }
-                .styled-table thead tr {
-                    background-color: #009879;
-                    color: #ffffff;
-                }
-                .styled-table th, .styled-table td {
-                    padding: 12px 15px;
-                    border: 1px solid #ddd;
-                }
-                .styled-table tbody tr:nth-of-type(even) {
-                    background-color: #f3f3f3;
-                }
-                .styled-table tbody tr:nth-of-type(odd) {
-                    background-color: #ffffff;
-                }
-                .styled-table tbody tr:hover {
-                    background-color: #f1f1f1;
-                }
-                .styled-table tbody td {
-                    color: #333333;
-                    font-weight: normal;
-                }
-                .styled-table tfoot tr {
-                    background-color: #009879;
-                    color: #ffffff;
-                    font-weight: bold;
-                }
-            </style>
+            <div class="no-data-message">
+                <div class="info-icon">📊</div>
+                <h2>No hay datos disponibles</h2>
+                <p>No se encontraron registros para ninguna de las categorías en el período seleccionado.</p>
+                <p>Por favor, seleccione un período diferente o verifique la disponibilidad de datos.</p>
+            </div>
         """, unsafe_allow_html=True)
+    else:
+        # Process Sabimet data if available
+        if not filtered_df_sabimet.empty:
+            aggregated_df_sabimet = filter_drop_duplicates_groupby_and_aggregate(
+                filtered_df_sabimet,
+                'origen',
+                'Progreso',
+                agg_dict
+            )
+            st.sidebar.info(f"Aggregated Sabimet records: {len(aggregated_df_sabimet)}")
+            
+            # Convert decimal types
+            columns_to_convert = ['placas', 'cantidadPerforacionesPlacas', 'espesor']
+            for col in columns_to_convert:
+                if col in aggregated_df_sabimet.columns:
+                    aggregated_df_sabimet[col] = aggregated_df_sabimet[col].apply(
+                        lambda x: float(x) if isinstance(x, Decimal) else x
+                    )
+        else:
+            aggregated_df_sabimet = pd.DataFrame()
 
-        # Display aggregated results in metric cards
-        col1, col2, col3, col4 = st.columns(4)
+        # Process Steelk data if available
+        if not filtered_df_steelk.empty:
+            aggregated_df_sttelk = filter_drop_duplicates_groupby_and_aggregate(
+                filtered_df_steelk,
+                'origen',
+                'Progreso',
+                agg_dict
+            )
+            st.sidebar.info(f"Aggregated Steelk records: {len(aggregated_df_sttelk)}")
+        else:
+            aggregated_df_sttelk = pd.DataFrame()
 
-        with col1:
-            st.markdown(f"""
-            <div class="card blue center-me">
-                <div class="card-header">Espesor Promedio</div>
-                {float(avg_espesor)}
-            </div>
-            """, unsafe_allow_html=True)
+        # Calculate proportions only if we have data
+        per_sabimet = sum(aggregated_df_sabimet['perforaTotal']) if not aggregated_df_sabimet.empty else 0
+        per_stellk = sum(aggregated_df_sttelk['perforaTotal']) if not aggregated_df_sttelk.empty else 0
 
-        with col2:
-            st.markdown(f"""
-            <div class="card teal center-me">
-                <div class="card-header">MM Total</div>
-                {float(mm_total)}
-            </div>
-            """, unsafe_allow_html=True)
+        st.sidebar.info(f"Sabimet perforaciones: {per_sabimet}")
+        st.sidebar.info(f"Steelk perforaciones: {per_stellk}")
 
-        with col3:
-            st.markdown(f"""
-            <div class="card purple center-me">
-                <div class="card-header">Costo Global/mm</div>
-                {float(costo_mm)}
-                <div style="font-size:12px; text-align:left;">Diferencia: 
-                    {round(float(mm_margin), 2)}$ a
-                    {costos_mm}$
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        total_per = per_sabimet + per_stellk
+        if total_per > 0:
+            pr_sabimet = per_sabimet / total_per
+            pr_stellk = per_stellk / total_per
+        else:
+            pr_sabimet = pr_stellk = 0
 
-        with col4:
-            st.markdown(f"""
-            <div class="card red center-me">
-                <div class="card-header">Perforaciones</div>
-                {perforaciones}
-            </div>
-            """, unsafe_allow_html=True)
+        # Render sections
+        render_section("Sabimet", aggregated_df_sabimet, espesor_list, pr_sabimet, costos_mes)
+        st.markdown('---')
+        render_section("Steelk", aggregated_df_sttelk, espesor_list, pr_stellk, costos_mes)
 
-        # Use container for remaining data
-        with st.container():
-            result = result.drop(columns=['perforaTotal', 'placas', 'Tiempo Proceso (min)'])
-
-            col1 = st.columns(1)[0]  # Fixed single column selection
-
-            with col1:
-                st.subheader("Espesores")
-                st.dataframe(result.reset_index(drop=True), use_container_width=True)
-
-
-
-# Example call to render_section (You will need your data to run this code)
-render_section("Sabimet", aggregated_df_sabimet, espesor_list, pr_sabimet, costos_mes)
-st.markdown('---')
-render_section("Steelk", aggregated_df_sttelk, espesor_list, pr_stellk, costos_mes)
+except Exception as e:
+    st.error(f"Error in main data processing: {str(e)}")
+    st.exception(e)
