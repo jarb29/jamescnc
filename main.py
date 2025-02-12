@@ -8,7 +8,7 @@ from decimal import Decimal
 
 # Initialize DynamoDB resource
 dynamo = boto3.resource('dynamodb', region_name='us-east-1')
-table = dynamo.Table('MECANIZADO_CLOSE2-dev')
+table = dynamo.Table("sam-stack-irlaa-MecanizadoCloseTable-1IKYW80FKFRII")
 
 # Scan the DynamoDB table and retrieve all items
 response = table.scan()
