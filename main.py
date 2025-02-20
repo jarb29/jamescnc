@@ -240,7 +240,6 @@ def render_section(title, aggregated_df, espesor_list, pr, costos_mes):
                 color: rgba(255,255,255,0.7);
                 margin-bottom: 10px;
             }
-            
             .metric-value {
                 font-size: 2rem;
                 font-weight: bold;
